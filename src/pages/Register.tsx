@@ -57,32 +57,16 @@ export default function Register() {
   async function onSubmit(data: RegistrationValues) {
     setLoading(true);
     setError(null);
-
     try {
-      const base = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
-      const res = await fetch(`${base}/api/pesapal/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: data.firstName,
-          lastName: data.lastName,
-          email: data.email,
-          phone: data.phone,
-          program: data.program,
-          dob: data.dob,
-          gender: data.gender,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json() as { error: string };
-        throw new Error(err.error || "Registration failed");
-      }
-
-      const { redirectUrl } = await res.json() as { redirectUrl: string };
-      window.location.href = redirectUrl;
+      // Build WhatsApp registration message (no backend required)
+      const msg = encodeURIComponent(
+        `Hello WorldTech Youth Foundation!\n\nNew Application:\nName: ${data.firstName} ${data.lastName}\nEmail: ${data.email}\nPhone: ${data.phone}\nProgram: ${data.program}\nDOB: ${data.dob}\nGender: ${data.gender}`
+      );
+      window.open(`https://wa.me/256700000000?text=${msg}`, "_blank");
+      setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
       setLoading(false);
     }
   }

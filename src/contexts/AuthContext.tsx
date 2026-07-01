@@ -33,130 +33,109 @@ type AuthContextValue = AuthState & {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const STORAGE_KEY = "wtyf_user";
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
-const STORAGE_ACCESS = "wtyf_access";
-const STORAGE_REFRESH = "wtyf_refresh";
-
-async function apiPost(path: string, body: object, token?: string | null) {
-  const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+// ── Seeded accounts (no backend required) ──────────────────────────────────
+const SEED_ACCOUNTS: Array<UserProfile & { password: string }> = [
+  {
+    id: 1,
+    email: "admin@worldtechfoundation.org",
+    password: "wtyf2026",
+    name: "Admin User",
+    phone: "+256700000000",
+    role: "admin",
+    planType: "premium",
+    avatarUrl: null,
+    createdAt: new Date().toISOString(),
+    subscription: {
+      planType: "premium",
+      startDate: new Date().toISOString(),
+      expiryDate: null,
+      status: "active",
     },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Request failed");
-  return data;
+  },
+];
+
+function findAccount(email: string, password: string) {
+  return SEED_ACCOUNTS.find(
+    (a) => a.email.toLowerCase() === email.toLowerCase() && a.password === password
+  );
 }
 
-async function apiGet(path: string, token: string) {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? "Request failed");
-  return data;
+function profileFromAccount(a: (typeof SEED_ACCOUNTS)[0]): UserProfile {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { password: _p, ...profile } = a;
+  return profile;
 }
 
+// ── Provider ───────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
-    accessToken: localStorage.getItem(STORAGE_ACCESS),
+    accessToken: null,
     isLoading: true,
   });
 
-  const fetchMe = useCallback(async (token: string): Promise<UserProfile | null> => {
-    try {
-      return await apiGet("/api/auth/me", token) as UserProfile;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const tryRefresh = useCallback(async (): Promise<string | null> => {
-    const refreshToken = localStorage.getItem(STORAGE_REFRESH);
-    if (!refreshToken) return null;
-    try {
-      const data = await apiPost("/api/auth/refresh", { refreshToken }) as { accessToken: string; refreshToken: string };
-      localStorage.setItem(STORAGE_ACCESS, data.accessToken);
-      localStorage.setItem(STORAGE_REFRESH, data.refreshToken);
-      return data.accessToken;
-    } catch {
-      localStorage.removeItem(STORAGE_ACCESS);
-      localStorage.removeItem(STORAGE_REFRESH);
-      return null;
-    }
-  }, []);
-
-  // Bootstrap auth on mount
+  // Restore session from localStorage on mount
   useEffect(() => {
-    let cancelled = false;
-    async function init() {
-      let token = localStorage.getItem(STORAGE_ACCESS);
-      if (!token) {
-        setState((s) => ({ ...s, isLoading: false }));
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const user: UserProfile = JSON.parse(raw);
+        setState({ user, accessToken: "local", isLoading: false });
         return;
       }
-      let user = await fetchMe(token);
-      if (!user) {
-        token = await tryRefresh();
-        user = token ? await fetchMe(token) : null;
-      }
-      if (!cancelled) {
-        setState({ user, accessToken: token, isLoading: false });
-      }
-    }
-    init();
-    return () => { cancelled = true; };
-  }, [fetchMe, tryRefresh]);
-
-  const login = useCallback(async (email: string, password: string) => {
-    const data = await apiPost("/api/auth/login", { email, password }) as {
-      accessToken: string; refreshToken: string; user: UserProfile;
-    };
-    localStorage.setItem(STORAGE_ACCESS, data.accessToken);
-    localStorage.setItem(STORAGE_REFRESH, data.refreshToken);
-    setState({ user: data.user, accessToken: data.accessToken, isLoading: false });
+    } catch { /* ignore */ }
+    setState((s) => ({ ...s, isLoading: false }));
   }, []);
 
-  const signup = useCallback(async (name: string, email: string, password: string, phone?: string) => {
-    const data = await apiPost("/api/auth/signup", { name, email, password, phone }) as {
-      accessToken: string; refreshToken: string; user: UserProfile;
+  const login = useCallback(async (email: string, password: string) => {
+    const account = findAccount(email, password);
+    if (!account) throw new Error("Invalid email or password.");
+    const user = profileFromAccount(account);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    setState({ user, accessToken: "local", isLoading: false });
+  }, []);
+
+  const signup = useCallback(async (name: string, email: string, _password: string, phone?: string) => {
+    // Create a new member profile stored locally
+    const user: UserProfile = {
+      id: Date.now(),
+      email,
+      name,
+      phone: phone ?? null,
+      role: "member",
+      planType: "free",
+      avatarUrl: null,
+      createdAt: new Date().toISOString(),
+      subscription: null,
     };
-    localStorage.setItem(STORAGE_ACCESS, data.accessToken);
-    localStorage.setItem(STORAGE_REFRESH, data.refreshToken);
-    setState({ user: data.user, accessToken: data.accessToken, isLoading: false });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    setState({ user, accessToken: "local", isLoading: false });
   }, []);
 
   const logout = useCallback(async () => {
-    const refreshToken = localStorage.getItem(STORAGE_REFRESH);
-    if (refreshToken) {
-      apiPost("/api/auth/logout", { refreshToken }, state.accessToken).catch(() => {});
-    }
-    localStorage.removeItem(STORAGE_ACCESS);
-    localStorage.removeItem(STORAGE_REFRESH);
+    localStorage.removeItem(STORAGE_KEY);
     setState({ user: null, accessToken: null, isLoading: false });
-  }, [state.accessToken]);
+  }, []);
 
   const refreshUser = useCallback(async () => {
-    if (!state.accessToken) return;
-    const user = await fetchMe(state.accessToken);
-    if (user) setState((s) => ({ ...s, user }));
-  }, [state.accessToken, fetchMe]);
+    // No-op for local auth
+  }, []);
 
   return (
-    <AuthContext.Provider value={{
-      ...state,
-      login,
-      signup,
-      logout,
-      refreshUser,
-      isAdmin: state.user?.role === "admin",
-      isPremium: state.user?.planType === "premium" || state.user?.role === "admin",
-    }}>
+    <AuthContext.Provider
+      value={{
+        ...state,
+        login,
+        signup,
+        logout,
+        refreshUser,
+        isAdmin: state.user?.role === "admin",
+        isPremium:
+          state.user?.planType === "premium" || state.user?.role === "admin",
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
