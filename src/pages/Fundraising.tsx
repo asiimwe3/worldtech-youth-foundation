@@ -55,24 +55,31 @@ export default function Fundraising() {
     if (!finalAmount || parseFloat(finalAmount) <= 0) {
       setError("Please enter a valid donation amount."); setLoading(false); return;
     }
-    // Try PesaPal API via Vercel serverless if available, else WhatsApp fallback
+    // Route through deployed Pesapal backend (UGX, no limit issues)
+    const BACKEND = "https://derick-ai-775511bf.base44.app/functions/wtfPesapalPay";
     try {
-      const res = await fetch("/api/pesapal/donate", {
+      const res = await fetch(BACKEND, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: data.name, email: data.email, phone: data.phone, amount: parseFloat(finalAmount), currency: data.currency }),
+        body: JSON.stringify({
+          name: data.name, email: data.email, phone: data.phone,
+          amount: parseFloat(finalAmount), currency: data.currency,
+          description: `WorldTech Youth Foundation Donation — ${data.currency} ${finalAmount} (${data.type})`
+        }),
       });
-      if (res.ok) {
-        const { redirectUrl } = await res.json() as { redirectUrl: string };
-        window.location.href = redirectUrl;
+      const json = await res.json() as { redirectUrl?: string; error?: string };
+      if (res.ok && json.redirectUrl) {
+        window.location.href = json.redirectUrl;
         return;
       }
-    } catch {}
-    // Fallback: WhatsApp donation intent
-    const msg = encodeURIComponent(`Hello WorldTech Youth Foundation! I'd like to donate ${currency} ${finalAmount} (${data.type}).\n\nName: ${data.name}\nEmail: ${data.email}\nPhone: ${data.phone || "N/A"}\n${data.message ? "Message: " + data.message : ""}`);
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`, "_blank");
-    setSubmitted(true);
-    setLoading(false);
+      throw new Error(json.error || "Payment initiation failed");
+    } catch (err: any) {
+      // Fallback: WhatsApp donation intent
+      const msg = encodeURIComponent(`Hello WorldTech Youth Foundation! I'd like to donate ${currency} ${finalAmount} (${data.type}).\n\nName: ${data.name}\nEmail: ${data.email}\nPhone: ${data.phone || "N/A"}\n${data.message ? "Message: " + data.message : ""}`);
+      window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`, "_blank");
+      setSubmitted(true);
+      setLoading(false);
+    }
   }
 
   const fundingStreams = [
