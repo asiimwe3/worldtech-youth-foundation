@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { DeryCodeAd } from "@/components/DeryCodeAd";
 
 import Home from "@/pages/Home";
 import About from "@/pages/About";
@@ -59,6 +60,7 @@ function App() {
             <Router />
           </WouterRouter>
           <Toaster />
+          <DeryCodeAd />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
