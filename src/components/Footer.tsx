@@ -100,8 +100,6 @@ export function Footer() {
             <a href="#" className="hover:text-white transition-colors" data-testid="link-terms">Terms of Service</a>
           </div>
         </div>
-      </div>
-
         <div className="mt-8 pt-6 border-t border-primary-foreground/10 flex justify-center">
           <a href="https://derycode.publicvm.com" target="_blank" rel="noopener noreferrer"
              className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-primary-foreground/5 border border-amber-500/30 hover:border-amber-500/50 transition-all group">
